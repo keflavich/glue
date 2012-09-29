@@ -3,6 +3,7 @@ import logging
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
+from aplpy2.wcs_axes import WCSAxes
 
 from .modest_image import extract_matched_slices
 from ..core.exceptions import IncompatibleAttribute
@@ -10,10 +11,10 @@ from ..core.data import Data
 from ..core.subset import Subset, RoiSubsetState
 from ..core.roi import PolygonalROI
 from ..core.edit_subset_mode import EditSubsetMode
+from ..core.coordinates import WCSCoordinates
 from ..core.util import color2rgb
 
 from .viz_client import VizClient, init_mpl
-
 
 class InvNormalize(Normalize):
     """ Simple wrapper to matplotlib Normalize object, that
@@ -178,9 +179,12 @@ class ScatterLayerManager(LayerManager):
 
 class ImageClient(VizClient):
 
-    def __init__(self, data, figure=None, axes=None):
-
-        figure, axes = init_mpl(figure, axes)
+    def __init__(self, data, figure=None):
+        figure = figure or plt.figure()
+        axes = WCSAxes(figure, [.1, .1, .8, .8])
+        axes.set_aspect('auto')
+        axes.set_xspacing(100)
+        axes.set_yspacing(100)
 
         VizClient.__init__(self, data)
 
@@ -270,6 +274,11 @@ class ImageClient(VizClient):
         attribute = self.layers[data].component_id
 
         self.display_data = data
+        if isinstance(data.coords, WCSCoordinates):
+            self._ax.set_input(data.coords.wcs)
+            self._ax.set_xspacing(.5)
+            self._ax.set_yspacing(.5)
+
         self.display_attribute = attribute
         self._update_data_plot(relim=True)
         self._update_visibilities()
