@@ -4,6 +4,7 @@ from PyQt4 import QtGui
 from mock import MagicMock, patch
 from ..qtutil import GlueDataDialog
 
+
 def test_glue_action_button():
     a = QtGui.QAction(None)
     a.setToolTip("testtooltip")
@@ -55,7 +56,7 @@ class TestGlueDataDialog(object):
                        factory=dummy_factory)
         d = fd.load_data()
         assert d.label == 'ld_data_nrml'
-        assert d.made_with_dummy_factory == True
+        assert d.made_with_dummy_factory is True
 
     def test_filters(self):
         """Should build filter list from data_factories env var"""
@@ -72,17 +73,20 @@ def mock_file_exec(fd, cancel=False, path='junk', factory=dummy_factory):
     fd.path = MagicMock()
     fd.path.return_value = path
 
+
 def test_data_wizard_cancel():
     """Returns empty list if user cancel's dialog"""
     with patch('glue.qt.qtutil.GlueDataDialog') as mock:
         mock().load_data.return_value = None
         assert qtutil.data_wizard() == []
 
+
 def test_data_wizard_normal():
     """Returns data list if successful"""
     with patch('glue.qt.qtutil.GlueDataDialog') as mock:
         mock().load_data.return_value = 1
         assert qtutil.data_wizard() == [1]
+
 
 def test_data_wizard_error_cancel():
     """Returns empty list of error generated and then canceled"""

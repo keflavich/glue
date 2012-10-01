@@ -2,13 +2,14 @@
 
 from PyQt4.QtGui import (QKeySequence, QMainWindow, QGridLayout,
                          QMenu, QMdiSubWindow, QAction, QMessageBox,
-                         QFileDialog, QLabel, QPixmap, QDesktopWidget)
+                         QFileDialog, QLabel, QPixmap, QDesktopWidget,
+                         QToolButton, QSplitter)
 from PyQt4.QtCore import Qt
 
 from .. import core
 from ..qt import get_qapp
 from .ui.glue_application import Ui_GlueApplication
-from .decorators import set_cursor
+from .decorators import set_cursor, messagebox_on_error
 
 from .actions import act
 from .qtutil import pick_class, data_wizard, GlueTabBar
@@ -42,11 +43,14 @@ class GlueApplication(QMainWindow, core.hub.HubListener):
 
         self._tweak_geometry()
         self._create_actions()
-        self._connect()
         self._create_menu()
         self._create_terminal()
+        self._connect()
         self._new_tab()
         self._welcome_window()
+
+    def has_terminal(self):
+        return self._terminal is not None
 
     @property
     def tab_widget(self):
@@ -110,7 +114,6 @@ class GlueApplication(QMainWindow, core.hub.HubListener):
                             handler=self._report_error)
         self._ui.layerWidget.setup(self._data, self._hub)
         self._data.register_to_hub(self._hub)
-        self._ui.terminal_button.clicked.connect(self._toggle_terminal)
         self.tab_widget.tabCloseRequested.connect(self._close_tab)
 
     def _create_menu(self):
@@ -230,6 +233,7 @@ class GlueApplication(QMainWindow, core.hub.HubListener):
     def _report_error(self, message):
         self.statusBar().showMessage(str(message))
 
+    @messagebox_on_error("Failed to save session")
     @set_cursor(Qt.WaitCursor)
     def _save_session(self):
         """ Save the data collection and hub to file.
@@ -246,17 +250,11 @@ class GlueApplication(QMainWindow, core.hub.HubListener):
         if not outfile:
             return
 
-        try:
-            with open(outfile, 'w') as out:
-                cp = CloudPickler(out, protocol=2)
-                cp.dump(state)
-        except PicklingError as p:
-            QMessageBox.critical(self, "Error",
-                                 "Cannot save data object: %s" % p)
-        except IOError as e:
-            QMessageBox.critical(self, "Error",
-                                 "Could not write file:\n%s" % e)
+        with open(outfile, 'w') as out:
+            cp = CloudPickler(out, protocol=2)
+            cp.dump(state)
 
+    @messagebox_on_error("Failed to restore session")
     @set_cursor(Qt.WaitCursor)
     def _restore_session(self):
         """ Load a previously-saved state, and restart the session """
@@ -267,12 +265,9 @@ class GlueApplication(QMainWindow, core.hub.HubListener):
                                                 filter=fltr)
         if not file_name:
             return
-        try:
-            state = Unpickler(open(file_name)).load()
-        except Exception as e:
-            QMessageBox.critical(self, "Error",
-                                 "Could not restore file: %s" % e)
-            return
+
+        state = Unpickler(open(file_name)).load()
+
         data, hub = state
         pos = self.pos()
         size = self.size()
@@ -287,20 +282,34 @@ class GlueApplication(QMainWindow, core.hub.HubListener):
         assert self._terminal is None, \
             "should only call _create_terminal once"
 
+        self._terminal_button = QToolButton(None)
+        self._terminal_button.setToolTip("Toggle command line")
+        self._ui.layerWidget.button_row.addWidget(self._terminal_button)
+
         try:
             from .widgets.terminal import glue_terminal
             widget = glue_terminal(data_collection=self._data)
+            self._terminal_button.clicked.connect(self._toggle_terminal)
         except Exception as e:  # pylint: disable=W0703
+            import traceback
+            self._terminal_exception = traceback.format_exc()
             self._setup_terminal_error_dialog(e)
             return
-        layout = self._ui.centralwidget.layout()
-        layout.addWidget(widget)
+
+        splitter = QSplitter(self)
+        splitter.setOrientation(Qt.Vertical)
+        splitter.addWidget(self._ui.centralwidget)
+        splitter.addWidget(widget)
+        splitter.setStretchFactor(0, 5)
+        splitter.setStretchFactor(1, 1)
+
+        self.setCentralWidget(splitter)
         self._terminal = widget
+
         self._hide_terminal()
 
     def _setup_terminal_error_dialog(self, exception):
         """ Reassign the terminal toggle button to show dialog on error"""
-        self._ui.terminal_button.clicked.disconnect()
         title = "Terminal unavailable"
         msg = ("Glue encountered an error trying to start the Terminal"
                "\nException:\n%s\n\nTerminal is unavailable" % exception)
@@ -308,7 +317,7 @@ class GlueApplication(QMainWindow, core.hub.HubListener):
         def show_msg():
             QMessageBox.critical(self, title, msg)
 
-        self._ui.terminal_button.clicked.connect(show_msg)
+        self._terminal_button.clicked.connect(show_msg)
 
     def _toggle_terminal(self):
         if self._terminal.isVisible():
@@ -320,12 +329,12 @@ class GlueApplication(QMainWindow, core.hub.HubListener):
 
     def _hide_terminal(self):
         self._terminal.hide()
-        button = self._ui.terminal_button
+        button = self._terminal_button
         button.setArrowType(Qt.DownArrow)
 
     def _show_terminal(self):
         self._terminal.show()
-        button = self._ui.terminal_button
+        button = self._terminal_button
         button.setArrowType(Qt.UpArrow)
 
     def _welcome_window(self):
