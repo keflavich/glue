@@ -147,7 +147,7 @@ class DendroClient(GenericMplClient):
 
     @property
     def _parents(self):
-        return np.asarray(self.display_data[self.parent_attr],
+        return np.asarray(self.display_data[str(self.parent_attr)],
                           dtype=np.int).ravel()
 
     @property
