@@ -25,10 +25,12 @@ def load_dendro(file):
                        for i in structs])
     height = np.array([dg[i].height for i in structs])
     pk = np.array([dg[i].get_peak(True)[1] for i in structs])
+    idx = np.array([dg[i].idx for i in structs])
 
     dendro = Data(parent=parent,
                   height=height,
                   peak=pk,
+                  index=idx,
                   label='Dendrogram')
 
     im = Data(intensity=dg.data, structure=dg.index_map)
