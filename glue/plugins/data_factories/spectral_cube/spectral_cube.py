@@ -1,6 +1,6 @@
 from __future__ import absolute_import, division, print_function
 
-from spectral_cube import SpectralCube, StokesSpectralCube
+from spectral_cube import SpectralCube, StokesSpectralCube, VaryingResolutionSpectralCube
 
 from qtpy.compat import getexistingdirectory
 from glue.core import Data
@@ -29,12 +29,12 @@ def is_spectral_cube(filename, **kwargs):
 
 def spectral_cube_to_data(cube, label=None):
 
-    if isinstance(cube, SpectralCube):
+    if isinstance(cube, (SpectralCube, VaryingResolutionSpectralCube)):
         cube = StokesSpectralCube({'I': cube})
 
     result = Data(label=label)
     result.coords = coordinates_from_wcs(cube.wcs)
-    result.meta = dict(cube.header)
+    #result.meta = dict(cube.header)
 
     for component in cube.components:
         data = getattr(cube, component).unmasked_data[...]
